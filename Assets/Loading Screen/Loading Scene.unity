@@ -869,8 +869,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   paw: {fileID: 796463465}
-  duration: 0.5
-  targetScale: 30
+  holdTime: 2
+  zoomDuration: 3
+  targetScale: 50
 --- !u!4 &1759076286
 Transform:
   m_ObjectHideFlags: 0

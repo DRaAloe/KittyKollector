@@ -1,13 +1,20 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 public class PawZoomTransition : MonoBehaviour
 {
     public RectTransform paw;
 
-    public float holdTime = 0.4f;     // how long it stays still
-    public float zoomDuration = 0.6f; // how fast it zooms
-    public float targetScale = 30f;
+    [Header("Timing")]
+    public float holdTime = 0.2f;
+    public float zoomDuration = 0.5f;
+
+    [Header("Zoom")]
+    public float targetScale = 35f;
+
+    [Header("Scene")]
+    public string sceneToLoad;
 
     bool isRunning = false;
 
@@ -26,14 +33,13 @@ public class PawZoomTransition : MonoBehaviour
     {
         isRunning = true;
 
-        // show paw
         paw.gameObject.SetActive(true);
         paw.localScale = Vector3.one;
 
-        // PHASE 1: HOLD (this is what you were missing)
+        // small hold so player sees paw
         yield return new WaitForSeconds(holdTime);
 
-        // PHASE 2: ZOOM
+        // zoom phase
         float t = 0f;
 
         while (t < zoomDuration)
@@ -50,6 +56,9 @@ public class PawZoomTransition : MonoBehaviour
             yield return null;
         }
 
-        paw.localScale = Vector3.one * targetScale;
+        // MAKE SURE FULL ANIMATION FINISHES BEFORE SCENE LOAD
+        yield return new WaitForSeconds(0.1f);
+
+        SceneManager.LoadScene(sceneToLoad);
     }
 }
