@@ -14,4 +14,15 @@ public class MenuManager : MonoBehaviour
         Debug.Log("Exit clicked");
         Application.Quit();
     }
+
+    void Update()
+{
+    if (Input.GetKeyDown(KeyCode.T))
+    {
+        ClaudeManager.Instance.Ask("Say hello to the player in 1 sentence.", reply =>
+        {
+            Debug.Log("Claude says: " + reply);
+        });
+    }
+}
 }

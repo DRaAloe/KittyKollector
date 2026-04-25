@@ -1,21 +1,19 @@
 using UnityEngine;
 using UnityEngine.Networking;
 using System.Collections;
-using Newtonsoft.Json;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 public class ClaudeManager : MonoBehaviour
 {
     public static ClaudeManager Instance;
 
-    [Header("API Settings")]
-    [SerializeField] private string apiKey = "YOUR_API_KEY_HERE";
+    [SerializeField] private string apiKey = "";
 
-    private const string API_URL = "https://api.anthropic.com/v1/messages";
-    private const string MODEL = "claude-sonnet-4-20250514";
+    private const string API_URL = "https://api.groq.com/openai/v1/chat/completions";
+    private const string MODEL = "llama3-8b-8192";
 
-    // Keeps conversation history so Claude remembers context
-    private List<Message> conversationHistory = new List<Message>();
+    private List<Dictionary<string, string>> conversationHistory = new List<Dictionary<string, string>>();
 
     void Awake()
     {
@@ -23,10 +21,14 @@ public class ClaudeManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    // Call this from anywhere in your game
     public void Ask(string prompt, System.Action<string> onReply)
     {
-        conversationHistory.Add(new Message { role = "user", content = prompt });
+        conversationHistory.Add(new Dictionary<string, string>
+        {
+            { "role", "user" },
+            { "content", prompt }
+        });
+
         StartCoroutine(SendRequest(onReply));
     }
 
@@ -34,64 +36,57 @@ public class ClaudeManager : MonoBehaviour
 
     IEnumerator SendRequest(System.Action<string> onReply)
     {
-        var body = new RequestBody
+        // Add system message at the top
+        var messages = new List<Dictionary<string, string>>();
+        messages.Add(new Dictionary<string, string>
         {
-            model = MODEL,
-            max_tokens = 1024,
-            system = "You are an AI built into a 2D platformer game. You control NPCs, generate dialogue, give hints, and respond to game events. Keep responses short and relevant to the game.",
-            messages = conversationHistory
+            { "role", "system" },
+            { "content", "You are an AI built into a 2D platformer game. You control NPCs, generate dialogue, give hints, and respond to game events. Keep responses short and punchy." }
+        });
+        messages.AddRange(conversationHistory);
+
+        var body = new Dictionary<string, object>
+        {
+            { "model", MODEL },
+            { "max_tokens", 1024 },
+            { "messages", messages }
         };
 
         string json = JsonConvert.SerializeObject(body);
+        Debug.Log("Sending: " + json);
+
         byte[] raw = System.Text.Encoding.UTF8.GetBytes(json);
 
         using var req = new UnityWebRequest(API_URL, "POST");
         req.uploadHandler = new UploadHandlerRaw(raw);
         req.downloadHandler = new DownloadHandlerBuffer();
         req.SetRequestHeader("Content-Type", "application/json");
-        req.SetRequestHeader("x-api-key", apiKey);
-        req.SetRequestHeader("anthropic-version", "2023-06-01");
+        req.SetRequestHeader("Authorization", "Bearer " + apiKey);
 
         yield return req.SendWebRequest();
 
         if (req.result == UnityWebRequest.Result.Success)
         {
-            var response = JsonConvert.DeserializeObject<ClaudeResponse>(req.downloadHandler.text);
-            string reply = response.content[0].text;
+            Debug.Log("Response: " + req.downloadHandler.text);
 
-            // Add Claude's reply to history so it remembers the conversation
-            conversationHistory.Add(new Message { role = "assistant", content = reply });
+            var response = JsonConvert.DeserializeObject<Dictionary<string, object>>(req.downloadHandler.text);
+            var choices = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(response["choices"].ToString());
+            var message = JsonConvert.DeserializeObject<Dictionary<string, string>>(choices[0]["message"].ToString());
+            string reply = message["content"];
+
+            conversationHistory.Add(new Dictionary<string, string>
+            {
+                { "role", "assistant" },
+                { "content", reply }
+            });
 
             onReply?.Invoke(reply);
+            Debug.Log("AI Reply: " + reply);
         }
         else
         {
-            Debug.LogError("Claude error: " + req.error);
+            Debug.LogError("Groq error: " + req.error);
+            Debug.LogError("Response body: " + req.downloadHandler.text);
         }
-    }
-
-    // Data classes
-    [System.Serializable] class RequestBody
-    {
-        public string model;
-        public int max_tokens;
-        public string system;
-        public List<Message> messages;
-    }
-
-    [System.Serializable] public class Message
-    {
-        public string role;
-        public string content;
-    }
-
-    [System.Serializable] class ClaudeResponse
-    {
-        public List<ContentBlock> content;
-    }
-
-    [System.Serializable] class ContentBlock
-    {
-        public string text;
     }
 }
